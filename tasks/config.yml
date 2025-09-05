@@ -1,0 +1,58 @@
+---
+
+- name: Generate configuration
+  ansible.builtin.command:
+    cmd: >-
+      {{ syncthing_cmd }} generate
+  register: __syncthing_generate
+  changed_when: __syncthing_generate.stdout is not search('Key exists')
+  become: yes
+  become_user: "{{ syncthing_user }}"
+
+- name: Start syncthing
+  ansible.builtin.service:
+    name: syncthing@{{ syncthing_user }}.service
+    state: started
+    enabled: yes
+  register: __syncthing_service
+  become: yes
+  when: not syncthing_docker | bool
+
+- name: Wait for 10 seconds
+  ansible.builtin.pause:
+    seconds: 10
+  when: __syncthing_service is changed
+
+- name: Get API key from configuration
+  community.general.xml:
+    path: "{{ syncthing_config_file }}"
+    xpath: /configuration/gui/apikey
+    content: text
+  register: __syncthing_api_key
+
+- name: Get status using API
+  ansible.builtin.uri:
+    url: "{{ syncthing_api_url }}/rest/system/status"
+    method: GET
+    headers:
+      X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
+    return_content: yes
+    validate_certs: false
+  register: syncthing_status
+
+- name: Get configuration using API
+  ansible.builtin.uri:
+    url: "{{ syncthing_api_url }}/rest/system/config"
+    method: GET
+    headers:
+      X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
+    return_content: yes
+    validate_certs: false
+  register: syncthing_config
+
+- name: Show status
+  ansible.builtin.debug:
+    msg:
+      status: "{{ syncthing_status.json }}"
+      config: "{{ syncthing_config.json }}"
+    verbosity: 1

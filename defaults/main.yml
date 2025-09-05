@@ -1,0 +1,13 @@
+---
+
+syncthing_api_url: http://127.0.0.1:8384
+syncthing_config_file: "/home/{{ syncthing_user }}/.local/state/syncthing/config.xml"
+
+syncthing_docker: false
+
+syncthing_cmd: syncthing
+
+syncthing_master: synology
+syncthing_clients:
+  - lenovo-t14
+  # - amsterdam-wsl

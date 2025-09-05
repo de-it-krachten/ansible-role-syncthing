@@ -1,0 +1,10 @@
+---
+
+- name: Install syncthing
+  ansible.builtin.package:
+    name:
+      - syncthing
+      - python3-lxml
+    state: present
+  become: yes
+  when: ansible_os_family is search('^(RedHat|Debian)$')
