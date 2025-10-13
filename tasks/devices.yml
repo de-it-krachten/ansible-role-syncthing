@@ -1,0 +1,39 @@
+---
+
+- name: Register devices
+  become: yes
+  become_user: "{{ syncthing_user }}"
+  block:
+
+    - name: Get all registered devices
+      ansible.builtin.command:
+        cmd: >-
+          {{ syncthing_cmd }} cli config devices list
+      changed_when: false
+      register: __synthing_devices
+
+    - name: Register master on all clients
+      ansible.builtin.shell:
+        cmd: >
+          {{ syncthing_cmd }} cli config devices add
+          --device-id {{ device_id }}
+        executable: /bin/bash
+      register: __syncthing_device_add
+      changed_when: "device_id not in __synthing_devices.stdout"
+      loop: "{{ groups['syncthing_masters'] }}"
+      vars:
+        device_id: "{{ hostvars[item]['syncthing_status']['json']['myID'] }}"
+      when: inventory_hostname in groups['syncthing_clients']
+
+    - name: Register all clients on master
+      ansible.builtin.shell:
+        cmd: >
+          {{ syncthing_cmd }} cli config devices add
+          --device-id {{ device_id }}
+        executable: /bin/bash
+      register: __syncthing_device_add
+      changed_when: "device_id not in __synthing_devices.stdout"
+      loop: "{{ groups['syncthing_clients'] }}"
+      vars:
+        device_id: "{{ hostvars[item]['syncthing_status']['json']['myID'] }}"
+      when: inventory_hostname in groups['syncthing_masters']

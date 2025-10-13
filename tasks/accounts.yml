@@ -1,12 +1,13 @@
 ---
 
 - name: Show all device id's
-  debug:
+  ansible.builtin.debug:
     msg: "{{ syncthing_status['json']['myID'] }}"
 
 - name: Register master on all clients
   ansible.builtin.shell:
     cmd: |
+      set -o pipefail
       syncthing="{{ syncthing_cmd }}"
       device_id={{ hostvars[item]['syncthing_status']['json']['myID'] }}
       $syncthing cli config devices list | grep -q "$device_id" && exit 0
@@ -23,6 +24,7 @@
 - name: Register all clients on master
   ansible.builtin.shell:
     cmd: |
+      set -o pipefail
       syncthing="{{ syncthing_cmd }}"
       device_id={{ hostvars[item]['syncthing_status']['json']['myID'] }}
       $syncthing cli config devices list | grep -q "$device_id" && exit 0
@@ -39,6 +41,7 @@
 - name: Create shared folders from first node
   ansible.builtin.shell:
     cmd: |
+      set -o pipefail
       syncthing="{{ syncthing_cmd }}"
       id="{{ item.id }}"
       path="{{ item.path }}"
@@ -52,37 +55,37 @@
   loop: "{{ syncthing_folders }}"
   when: inventory_hostname == groups['syncthing_clients'][0]
 
-#- name: xxx
-#  when: inventory_hostname == groups['syncthing_clients'][0]
-#  vars:
-#    master: "{{ groups['syncthing_masters'][0] }}"
-#    master_id: "{{ hostvars[master]['syncthing_status']['json']['myID'] }}"
-#  block:
+# - name: xxx
+#   when: inventory_hostname == groups['syncthing_clients'][0]
+#   vars:
+#     master: "{{ groups['syncthing_masters'][0] }}"
+#     master_id: "{{ hostvars[master]['syncthing_status']['json']['myID'] }}"
+#   block:
 #
-#    - name: Get all folders
-#      ansible.builtin.set_fact:
-#        folders: >-
-#          [
-#            {%- for f1 in syncthing_config.json.folders -%}
-#            {%- for f2 in syncthing_folders -%}
-#            {%- if f1.id == f2.id -%}
-#            {%- set devices = { "devices": [{ "deviceID": master_id, "encryptionPassword": f2.encryption_password, "encryptionType": f2.encryption_type }] } -%}
-#            {{ f1 | combine(devices) }},
-#            {%- endif -%}
-#            {%- endfor -%}
-#            {%- endfor -%}
-#          ]
+#     - name: Get all folders
+#       ansible.builtin.set_fact:
+#         folders: >-
+#           [
+#             {%- for f1 in syncthing_config.json.folders -%}
+#             {%- for f2 in syncthing_folders -%}
+#             {%- if f1.id == f2.id -%}
+#             {%- set devices = { "devices": [{ "deviceID": master_id, "encryptionPassword": f2.encryption_password, "encryptionType": f2.encryption_type }] } -%}
+#             {{ f1 | combine(devices) }},
+#             {%- endif -%}
+#             {%- endfor -%}
+#             {%- endfor -%}
+#           ]
 #
-#    - name: Merge folders into configuration
-#      ansible.builtin.set_fact:
-#        syncthing_updated_config: "{{ syncthing_config | combine({'folders': folders}) }}"
+#     - name: Merge folders into configuration
+#       ansible.builtin.set_fact:
+#         syncthing_updated_config: "{{ syncthing_config | combine({'folders': folders}) }}"
 #
-#    - name: Share folder from first node
-#      ansible.builtin.uri:
-#        url: "{{ syncthing_api_url }}/rest/system/config"
-#        method: POST
-#        headers:
-#          X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
-#          Content-Type: "application/json"
-#        body: "{{ syncthing_updated_config | to_json }}"
-#        status_code: 200
+#     - name: Share folder from first node
+#       ansible.builtin.uri:
+#         url: "{{ syncthing_api_url }}/rest/system/config"
+#         method: POST
+#         headers:
+#           X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
+#           Content-Type: "application/json"
+#         body: "{{ syncthing_updated_config | to_json }}"
+#         status_code: 200

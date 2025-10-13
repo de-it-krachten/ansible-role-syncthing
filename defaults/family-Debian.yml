@@ -1,0 +1,8 @@
+---
+
+# List of packages
+syncthing_packages:
+  - syncthing
+  - python3-lxml
+  # - jq
+  # - moreutils

@@ -1,0 +1,44 @@
+---
+
+- name: Show all device id's
+  ansible.builtin.debug:
+    msg: "{{ syncthing_status['json']['myID'] }}"
+
+- name: Define master + clients names as facts
+  ansible.builtin.set_fact:
+    master: "{{ groups['syncthing_masters'][0] }}"
+    clients: "{{ groups['syncthing_clients'] }}"
+    client1: "{{ groups['syncthing_clients'][0] }}"
+    client2: "{{ groups['syncthing_clients'][1] }}"
+
+- name: Get device ids as facts  # noqa jinja[spacing]
+  ansible.builtin.set_fact:
+    master_id: "{{ hostvars[master]['syncthing_status']['json']['myID'] }}"
+    client_ids: >-
+      [
+        {%- for client in groups['syncthing_clients'] -%}
+        "{{ hostvars[client]['syncthing_status']['json']['myID'] }}",
+        {%- endfor -%}
+      ]
+    clients: "{{ groups['syncthing_clients'] }}"
+
+- name: Get device ids as facts  # noqa jinja[spacing]
+  ansible.builtin.set_fact:
+    master_id: "{{ hostvars[master]['syncthing_status']['json']['myID'] }}"
+    client_ids: >-
+      [
+        {%- for client in groups['syncthing_clients'] -%}
+        "{{ hostvars[client]['syncthing_status']['json']['myID'] }}",
+        {%- endfor -%}
+      ]
+    clients: "{{ groups['syncthing_clients'] }}"
+
+- name: Get device ids as facts  # noqa jinja[spacing]
+  ansible.builtin.set_fact:
+    master_id: "{{ hostvars[master]['syncthing_status']['json']['myID'] }}"
+    client_ids: >-
+      [
+        {%- for client in groups['syncthing_clients'] -%}
+        "{{ hostvars[client]['syncthing_status']['json']['myID'] }}",
+        {%- endfor -%}
+      ]
