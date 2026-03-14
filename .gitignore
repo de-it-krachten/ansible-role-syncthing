@@ -3,3 +3,4 @@
 molecule/default/molecule.yml.j2
 /.ansible/
 defaults/defaults-*
+filter_plugins/__pycache__/
