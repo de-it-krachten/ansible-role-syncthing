@@ -1,7 +1,7 @@
 ---
 
 - name: Debian family
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts.os_family == 'Debian'
   block:
 
     - name: Download APT signing key
@@ -17,7 +17,7 @@
         file: /tmp/syncthing.gpg
         keyring: /etc/apt/trusted.gpg.d/syncthing.gpg
       become: yes
-      when: ansible_distribution_major_version | int < 12
+      when: ansible_facts.distribution_major_version | int < 12
 
     - name: Copy APT signing key into the proper drop-in directory
       ansible.builtin.copy:
@@ -25,13 +25,13 @@
         dest: /etc/apt/trusted.gpg.d/syncthing.gpg
         remote_src: yes
         mode: "0644"
-      when: ansible_distribution_major_version | int >= 12
+      when: ansible_facts.distribution_major_version | int >= 12
 
     - name: Setup Microsoft APT repository  # noqa jinja[spacing]
       ansible.builtin.apt_repository:
         filename: virtualbox
         repo: >-
-          {% if ansible_distribution_major_version | int < 12 %}
+          {% if ansible_facts.distribution_major_version | int < 12 %}
           deb
           [arch=amd64,arm64]
           {% else %}
