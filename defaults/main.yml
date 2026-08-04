@@ -1,13 +1,34 @@
 ---
 
+# API URI
 syncthing_api_url: http://127.0.0.1:8384
-syncthing_config_file: "/home/{{ syncthing_user }}/.local/state/syncthing/config.xml"
 
+# User that will start the syncthing service
+syncthing_user: syncthing
+
+# service
+syncthing_service: syncthing@{{ syncthing_user }}.service
+
+# Execute in Docker
 syncthing_docker: false
 
+# Synthing command
 syncthing_cmd: syncthing
 
-syncthing_master: synology
-syncthing_clients:
-  - lenovo-t14
-  # - amsterdam-wsl
+# Server that should be used as master
+syncthing_master: master
+
+# Client that sync through master
+syncthing_clients: []
+
+syncthing_gui_patch:
+  gui:
+    address: "0.0.0.0:8384"
+    user: admin
+    password: "{{ admin_password | default('admin', true) }}"
+  options:
+    urAccepted: 3
+    urSeen: 3
+
+# Perform software install only
+syncthing_install_only: false
