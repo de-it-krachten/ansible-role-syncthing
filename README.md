@@ -122,10 +122,14 @@ syncthing_packages:
   become: 'yes'
   vars:
     syncthing_user: syncthing
-    syncthing_folders: '[{''id'': ''f2c6b06bf7d0bc8f6471e3c97933dd421cf9e864'', ''label'':
-      ''test01'', ''path'': ''{{ syncthing_home }}/test01''}, {''id'': ''534e995fef5b8e236deffa878228172dad0578e1'',
-      ''label'': ''test02'', ''path'': ''{{ syncthing_home }}/test02'', ''encryption_password'':
-      ''BNaFIsMKcpD+yhzv+zNLP4b8VG5CyWnKPSXchLhBNOs=''}]'
+    syncthing_folders:
+      - id: f2c6b06bf7d0bc8f6471e3c97933dd421cf9e864
+        label: test01
+        path: '{{ syncthing_home }}/test01'
+      - id: 534e995fef5b8e236deffa878228172dad0578e1
+        label: test02
+        path: '{{ syncthing_home }}/test02'
+        encryption_password: BNaFIsMKcpD+yhzv+zNLP4b8VG5CyWnKPSXchLhBNOs=
   tasks:
     - name: Include role 'syncthing'
       ansible.builtin.include_role:
