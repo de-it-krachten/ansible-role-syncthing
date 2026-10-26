@@ -1,5 +1,43 @@
 ---
 
+- name: Get syncthing user info
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ syncthing_user }}"
+  register: __syncthing_user_info
+
+- name: Set user home
+  ansible.builtin.set_fact:
+    syncthing_home: "{{ __syncthing_user_info['ansible_facts']['getent_passwd'][syncthing_user][4] }}"
+
+- name: Set configuration location
+  ansible.builtin.set_fact:
+    syncthing_config_file: "{{ syncthing_home }}/.local/state/syncthing/config.xml"
+
+- name: Reset configuration
+  when: lookup('env', 'syncthing_reset') | default(False, true) | bool
+  block:
+
+    - name: Stop syncthing service
+      ansible.builtin.service:
+        name: "{{ syncthing_service }}"
+        state: stopped
+        enabled: false
+
+    - name: Delete configuration
+      ansible.builtin.file:
+        path: "{{ syncthing_config_file | dirname }}"
+        state: absent
+      become: yes
+
+    - name: Delete shared folders
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ syncthing_folders }}"
+      loop_control:
+        label: "{{ item.path }}"
+
 - name: Generate configuration
   ansible.builtin.command:
     cmd: >-
@@ -11,16 +49,16 @@
 
 - name: Start syncthing
   ansible.builtin.service:
-    name: syncthing@{{ syncthing_user }}.service
+    name: "{{ syncthing_service }}"
     state: started
     enabled: yes
   register: __syncthing_service
   become: yes
   when: not syncthing_docker | bool
 
-- name: Wait for 10 seconds
+- name: Wait for 15 seconds  # noqa no-handler
   ansible.builtin.pause:
-    seconds: 10
+    seconds: 15
   when: __syncthing_service is changed
 
 - name: Get API key from configuration

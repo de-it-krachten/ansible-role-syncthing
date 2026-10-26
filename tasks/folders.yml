@@ -1,0 +1,194 @@
+---
+
+- name: Register folders
+  become: yes
+  become_user: "{{ syncthing_user }}"
+  block:
+
+    - name: Get all folders
+      ansible.builtin.command:
+        cmd: "{{ syncthing_cmd }} cli config folders list"
+      changed_when: false
+      register: __synthing_folders
+
+    # --------------------------------------------------------
+    # client1 -> master
+    # --------------------------------------------------------
+
+    - name: Create folders on client1
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        mode: "0700"
+      loop: "{{ syncthing_folders }}"
+      loop_control:
+        label: "{{ item.label }}"
+      when: inventory_hostname == groups['syncthing_clients'][0]
+
+    - name: Register folders on client1
+      ansible.builtin.shell: >
+        {{ syncthing_cmd }} cli config folders add
+        --id {{ item.id }}
+        --label {{ item.label }}
+        --path {{ item.path }}
+      args:
+        executable: /bin/bash
+      register: add_folder
+      failed_when: add_folder.rc not in [0,1] and 'folder has duplicate ID' not in add_folder.stderr|default('')
+      changed_when: "'folder has duplicate ID' not in (add_folder.stderr|default(''))"
+      loop: "{{ syncthing_folders }}"
+      loop_control:
+        label: "{{ item.label }}"
+      when:
+        - inventory_hostname == groups['syncthing_clients'][0]
+        - item.id not in __synthing_folders.stdout
+
+#    - name: Enable 'auto-accept-folders' on master
+#      ansible.builtin.shell:
+#        cmd: >-
+#          {{ syncthing_cmd }} cli config devices {{ client_ids[0] }}
+#          auto-accept-folders set true
+#        executable: /bin/bash
+#      changed_when: false
+#      register: __syncthing_folder_add
+#      loop: "{{ syncthing_folders }}"
+#      loop_control:
+#        label: "{{ item.label }}"
+#      when: inventory_hostname == groups['syncthing_masters'][0]
+#      tags: molecule-idempotence-notest
+
+    - name: Share folder from client1 -> master
+      ansible.builtin.shell:
+        cmd: >
+          {{ syncthing_cmd }} cli config folders {{ item.id }} devices add
+          --device-id {{ master_id }}
+          {% if item.encryption_password is defined %}
+          --encryption-password {{ item.encryption_password }}
+          {% endif %}
+        executable: /bin/bash
+      changed_when: true
+      register: __syncthing_folder_add
+      loop: "{{ syncthing_folders }}"
+      loop_control:
+        label: "{{ item.label }}"
+      when:
+        - inventory_hostname == groups['syncthing_clients'][0]
+        - item.id not in hostvars[master]['__synthing_folders']['stdout']
+
+    - name: Wait for 5 seconds and let auto-accept
+      ansible.builtin.pause:
+        seconds: 5
+
+#    - name: Disable 'auto-accept-folders' on master
+#      ansible.builtin.shell:
+#        cmd: >-
+#          {{ syncthing_cmd }} cli config devices {{ client_ids[0] }}
+#          auto-accept-folders set false
+#        executable: /bin/bash
+#      changed_when: false
+#      register: __syncthing_folder_add
+#      loop: "{{ syncthing_folders }}"
+#      loop_control:
+#        label: "{{ item.label }}"
+#      when: inventory_hostname == groups['syncthing_masters'][0]
+#      tags: molecule-idempotence-notest
+
+    - name: Wait for pending approvals on folders
+      ansible.builtin.uri:
+        url: "{{ syncthing_api_url }}/rest/cluster/pending/folders"
+        method: GET
+        headers:
+          X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
+        return_content: yes
+        validate_certs: false
+      register: __pending_folders
+      until: __pending_folders.json == {}
+      retries: 600
+      delay: 10
+      when: inventory_hostname == groups['syncthing_masters'][0]
+
+
+    # --------------------------------------------------------
+    # master -> client2
+    # --------------------------------------------------------
+
+# NOTE: auto-accept for encrypted folders does not seem to work
+
+#    - name: Enable 'auto-accept-folders' for master on client2
+#      ansible.builtin.shell:
+#        cmd: >-
+#          {{ syncthing_cmd }} cli config devices {{ master_id }}
+#          auto-accept-folders set true
+#        executable: /bin/bash
+#      register: __syncthing_folder_add
+#      loop: "{{ syncthing_folders }}"
+#      loop_control:
+#        label: "{{ item.label }}"
+#      when: inventory_hostname == groups['syncthing_clients'][1]
+
+    - name: Share folders from master -> client2
+      ansible.builtin.shell:
+        cmd: >
+          {{ syncthing_cmd }} cli config folders {{ item.id }} devices add
+          --device-id {{ client_ids[1] }}
+        executable: /bin/bash
+      changed_when: true
+      register: __syncthing_folder_add
+      loop: "{{ syncthing_folders }}"
+      loop_control:
+        label: "{{ item.label }}"
+      when:
+        - inventory_hostname == groups['syncthing_masters'][0]
+        - item.id not in hostvars[client2]['__synthing_folders']['stdout']
+      tags: molecule-idempotence-notest
+
+#    - name: Wait for 5 seconds and let auto-accept
+#      ansible.builtin.pause:
+#        seconds: 5
+#
+#    - name: Disable 'auto-accept-folders' on client2
+#      ansible.builtin.shell:
+#        cmd: >-
+#          {{ syncthing_cmd }} cli config devices {{ master_id }}
+#          auto-accept-folders set false
+#        executable: /bin/bash
+#      register: __syncthing_folder_add
+#      loop: "{{ syncthing_folders }}"
+#      loop_control:
+#        label: "{{ item.label }}"
+#      when: inventory_hostname == groups['syncthing_clients'][1]
+#
+#
+#    # --------------------------------------------------------
+#    # Test files
+#    # --------------------------------------------------------
+#
+#    - name: Create random files
+#      ansible.builtin.shell:
+#        cmd: |
+#          echo "TEST" > {{ item.path }}/TEST.txt
+#          dd if=/dev/urandom of={{ item.path }}/testfile1 bs=1M count=1
+#          dd if=/dev/urandom of={{ item.path }}/testfile2 bs=1M count=1
+#          dd if=/dev/urandom of={{ item.path }}/testfile3 bs=1M count=1
+#          dd if=/dev/urandom of={{ item.path }}/testfile4 bs=1M count=1
+#      changed_when: true
+#      loop: "{{ syncthing_folders }}"
+#      loop_control:
+#        label: "{{ item.label }}"
+#      when: inventory_hostname == groups['syncthing_clients'][0]
+#
+#
+#    # --------------------------------------------------------
+#    # Encryption
+#    # --------------------------------------------------------
+#
+#    - name: Make encrypted file available
+#      ansible.builtin.include_tasks: api.yml
+#      vars:
+#        syncthing_folder_encryption: true
+#      when: inventory_hostname == groups['syncthing_clients'][1]
+#
+#    - name: Restart syncthing service
+#      ansible.builtin.service:
+#        name: "{{ syncthing_service }}"
+#        state: restarted

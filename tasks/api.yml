@@ -1,0 +1,58 @@
+---
+
+- name: Register folders
+  become: yes
+  become_user: "{{ syncthing_user }}"
+  block:
+
+    - name: Get configuration using API
+      ansible.builtin.uri:
+        url: "{{ syncthing_api_url }}/rest/config"
+        method: GET
+        headers:
+          X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
+        return_content: yes
+        validate_certs: false
+      register: syncthing_config
+
+    - name: Get the password
+      ansible.builtin.set_fact:
+        admin_password: "{{ syncthing_config.json.gui.password }}"
+
+    - name: Patch the configuration
+      ansible.builtin.set_fact:
+        syncthing_config: "{{ syncthing_config.json | recursive_sort }}"
+        syncthing_config_patched: "{{ syncthing_config.json | combine(api_patch, recursive=true) | recursive_sort }}"
+
+    - name: Show the patched configuration
+      ansible.builtin.debug:
+        msg: "{{ syncthing_config_patched }}"
+        verbosity: 1
+
+    - name: Update the configuration via API
+      ansible.builtin.uri:
+        url: "{{ syncthing_api_url }}/rest/config"
+        method: PUT
+        headers:
+          X-API-Key: "{{ __syncthing_api_key.matches[0].apikey }}"
+          Content-Type: "application/json"
+        body: "{{ syncthing_config_patched }}"
+        body_format: json
+        status_code: 200
+        validate_certs: false
+      changed_when: yes
+      register: __syncthing_patch
+      when: syncthing_config_patched | dict_diff(syncthing_config) != {}
+
+    - name: Restart syncthing service
+      ansible.builtin.service:
+        name: "{{ syncthing_service }}"
+        state: restarted
+      become: yes
+      become_user: root
+      when: __syncthing_patch is not skipped
+
+    - name: Wait for 10 seconds
+      ansible.builtin.pause:
+        seconds: 10
+      when: __syncthing_patch is not skipped

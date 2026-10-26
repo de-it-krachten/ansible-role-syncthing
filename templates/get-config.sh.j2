@@ -1,0 +1,10 @@
+#!/bin/bash
+# Simple script to fetch Syncthing config via API
+
+# Set Syncthing API key and URL
+API_KEY="{{ __syncthing_api_key.matches[0].apikey }}"
+API_URL="http://127.0.0.1:8384/rest/system/config"
+
+# Fetch config
+apt list --installed | grep -q ^curl || apt install curl -y
+curl -s -H "X-API-Key: $API_KEY" "$API_URL"

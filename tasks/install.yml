@@ -1,10 +1,78 @@
 ---
 
+- name: Debian family
+  when: ansible_facts.os_family == 'Debian'
+  block:
+
+    - name: Download APT signing key
+      ansible.builtin.get_url:
+        url: https://syncthing.net/release-key.gpg
+        dest: /tmp/syncthing.gpg
+        mode: "0644"
+      changed_when: false
+
+    - name: Import Microsoft GPG key
+      ansible.builtin.apt_key:
+        state: present
+        file: /tmp/syncthing.gpg
+        keyring: /etc/apt/trusted.gpg.d/syncthing.gpg
+      become: yes
+      when: ansible_facts.distribution_major_version | int < 12
+
+    - name: Copy APT signing key into the proper drop-in directory
+      ansible.builtin.copy:
+        src: /tmp/syncthing.gpg
+        dest: /etc/apt/trusted.gpg.d/syncthing.gpg
+        remote_src: yes
+        mode: "0644"
+      when: ansible_facts.distribution_major_version | int >= 12
+
+    - name: Setup Microsoft APT repository  # noqa jinja[spacing]
+      ansible.builtin.apt_repository:
+        filename: virtualbox
+        repo: >-
+          {% if ansible_facts.distribution_major_version | int < 12 %}
+          deb
+          [arch=amd64,arm64]
+          {% else %}
+          deb
+          [arch=amd64,arm64 signed-by=/etc/apt/trusted.gpg.d/syncthing.gpg]
+          {% endif %}
+          https://apt.syncthing.net/
+          syncthing
+          stable-v2
+        state: present
+      become: yes
+      register: __apt_repository
+
+    - name: Make synthing apt repo prevail over default
+      ansible.builtin.copy:
+        content: |
+          Package: *
+          Pin: origin apt.syncthing.net
+          Pin-Priority: 990
+        dest: /etc/apt/preferences.d/syncthing.pref
+        owner: root
+        group: root
+        mode: "0644"
+        backup: yes
+      become: yes
+
+    - name: Update package list  # noqa no-handler
+      ansible.builtin.apt:
+        update_cache: yes
+      when: __apt_repository.changed
+
 - name: Install syncthing
   ansible.builtin.package:
-    name:
-      - syncthing
-      - python3-lxml
+    name: "{{ syncthing_packages }}"
     state: present
   become: yes
-  when: ansible_os_family is search('^(RedHat|Debian)$')
+
+- name: Create syncthing user
+  ansible.builtin.user:
+    name: "{{ syncthing_user }}"
+    state: present
+    shell: /bin/bash
+    home: /home/{{ syncthing_user }}
+  when: syncthing_user != 'root'
